@@ -1,0 +1,6 @@
+{
+  "name": "Large Controller",
+  "description": "Futuristic mobile control application and AI assistant powered by SARA with holographic UI, device automation, and prompt studio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Large Controller</string>
+    <string name="sara_title">SARA AI Core</string>
+    <string name="sara_subtitle">Large Technology v4.2</string>
+    <string name="system_online">SYSTEM ONLINE</string>
+    <string name="holographic_overlay">Holographic Overlay</string>
+    <string name="status_ready">READY FOR COMMANDS</string>
+    <string name="input_placeholder">Enter command for SARA (e.g. Turn on flashlight, Volume 80%, Battery...)</string>
+    <string name="tab_console">Console</string>
+    <string name="tab_controller">Controls</string>
+    <string name="tab_prompts">Prompt Studio</string>
+    <string name="tab_diagnostics">Diagnostics</string>
+</resources>
