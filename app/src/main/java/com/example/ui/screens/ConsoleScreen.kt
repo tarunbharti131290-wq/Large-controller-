@@ -75,6 +75,7 @@ fun ConsoleScreen(
     onToggleCliMode: () -> Unit,
     onSendMessage: (String) -> Unit,
     onExecuteAction: (CommandAction) -> Unit,
+    isGeminiConnected: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var inputText by remember { mutableStateOf("") }
@@ -87,6 +88,8 @@ fun ConsoleScreen(
     }
 
     val quickCommands = listOf(
+        "Connect Gemini API Key",
+        "Check Gemini Status",
         "Run Security Audit",
         "Start Background Daemon",
         "Scan Network Ports",
@@ -138,11 +141,34 @@ fun ConsoleScreen(
                 }
             }
 
-            Text(
-                text = "HOLOGRAPHIC BUS: SECURE",
-                style = Typography.labelSmall,
-                color = EmeraldOnline
-            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isGeminiConnected) EmeraldOnline.copy(alpha = 0.15f) else HoloSurfaceVariant)
+                    .border(
+                        1.dp,
+                        if (isGeminiConnected) EmeraldOnline.copy(alpha = 0.6f) else HoloBorder,
+                        RoundedCornerShape(8.dp)
+                    )
+                    .clickable { onSendMessage("Check Gemini API key status") }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .testTag("gemini_status_pill")
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (isGeminiConnected) EmeraldOnline else CyanCore)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = if (isGeminiConnected) "GEMINI 2.5 LIVE" else "LOCAL ONBOARD AI",
+                        style = Typography.labelSmall,
+                        color = if (isGeminiConnected) EmeraldOnline else TextCyan
+                    )
+                }
+            }
         }
 
         if (!isCliMode) {

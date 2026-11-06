@@ -127,5 +127,12 @@ class ExampleRobolectricTest {
         assertEquals(ActionTarget.DATA, response.action?.target)
         assertEquals("ON", response.action?.state)
     }
+
+    @Test
+    fun `gemini service initialized safely`() {
+        val geminiService = com.example.service.GeminiService()
+        assertNotNull(geminiService.activeModelName)
+        assertEquals("gemini-2.5-flash", geminiService.activeModelName)
+    }
 }
 

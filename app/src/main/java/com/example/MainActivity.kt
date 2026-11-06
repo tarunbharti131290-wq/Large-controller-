@@ -106,6 +106,8 @@ fun MainAppScreen(viewModel: MainViewModel) {
     val installedApps by viewModel.installedApps.collectAsState()
     val recentNotifications by viewModel.recentNotifications.collectAsState()
     val lastNotification by viewModel.lastNotification.collectAsState()
+    val isGeminiConnected by viewModel.isGeminiConnected.collectAsState()
+    val activeAiEngine by viewModel.activeAiEngine.collectAsState()
 
     // Handle Android system back press to return to Console
     BackHandler(enabled = currentTab != AppTab.CONSOLE) {
@@ -132,8 +134,14 @@ fun MainAppScreen(viewModel: MainViewModel) {
                 // Top Header Branding & System Identification
                 TopHeaderBar(
                     memoriesCount = memories.size,
+                    isGeminiConnected = isGeminiConnected,
+                    activeAiEngine = activeAiEngine,
                     onOpenVault = { viewModel.setTab(AppTab.MEMORY) },
-                    onClearHistory = { viewModel.clearHistory() }
+                    onClearHistory = { viewModel.clearHistory() },
+                    onCheckGemini = {
+                        viewModel.setTab(AppTab.CONSOLE)
+                        viewModel.sendCommand("Connect Gemini API key")
+                    }
                 )
 
                 // Real-time Telemetry HUD Bar
@@ -195,7 +203,8 @@ fun MainAppScreen(viewModel: MainViewModel) {
                                 isCliMode = isCliMode,
                                 onToggleCliMode = { viewModel.toggleCliMode() },
                                 onSendMessage = { viewModel.sendCommand(it) },
-                                onExecuteAction = { viewModel.executeActionManually(it) }
+                                onExecuteAction = { viewModel.executeActionManually(it) },
+                                isGeminiConnected = isGeminiConnected
                             )
                         }
                         AppTab.CONTROLS -> {
@@ -265,8 +274,11 @@ fun MainAppScreen(viewModel: MainViewModel) {
 @Composable
 fun TopHeaderBar(
     memoriesCount: Int,
+    isGeminiConnected: Boolean,
+    activeAiEngine: String,
     onOpenVault: () -> Unit,
-    onClearHistory: () -> Unit
+    onClearHistory: () -> Unit,
+    onCheckGemini: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -297,11 +309,28 @@ fun TopHeaderBar(
                     )
                 }
             }
-            Text(
-                text = "SARA Self-Learning Companion // Large Technology",
-                style = Typography.labelSmall,
-                color = TextCyan
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "SARA Companion // ",
+                    style = Typography.labelSmall,
+                    color = TextCyan
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (isGeminiConnected) EmeraldOnline.copy(alpha = 0.15f) else CyanCore.copy(alpha = 0.15f))
+                        .border(1.dp, if (isGeminiConnected) EmeraldOnline.copy(alpha = 0.4f) else CyanCore.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                        .clickable(onClick = onCheckGemini)
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                        .testTag("header_gemini_pill")
+                ) {
+                    Text(
+                        text = if (isGeminiConnected) "GEMINI 2.5 LIVE" else "LOCAL ONBOARD",
+                        style = Typography.labelSmall,
+                        color = if (isGeminiConnected) EmeraldOnline else TextCyan
+                    )
+                }
+            }
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -311,9 +340,9 @@ fun TopHeaderBar(
                     .clip(RoundedCornerShape(8.dp))
                     .background(CyanCore.copy(alpha = 0.15f))
                     .border(1.dp, CyanCore.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                    .clickable(onClick = onOpenVault)
-                    .padding(horizontal = 8.dp, vertical = 5.dp)
-                    .testTag("header_vault_button")
+                .clickable(onClick = onOpenVault)
+                .padding(horizontal = 8.dp, vertical = 5.dp)
+                .testTag("header_vault_button")
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(

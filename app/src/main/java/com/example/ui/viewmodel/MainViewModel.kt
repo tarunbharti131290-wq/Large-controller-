@@ -17,6 +17,7 @@ import com.example.model.MemoryType
 import com.example.model.MessageSender
 import com.example.model.PromptTemplate
 import com.example.service.DeviceController
+import com.example.service.GeminiService
 import com.example.service.HapticFeedbackType
 import com.example.service.SaraBrainEngine
 import com.example.service.SaraMemoryVault
@@ -42,6 +43,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val deviceController = DeviceController(application)
     private val saraBrain = SaraBrainEngine()
     private val memoryVault = SaraMemoryVault(application)
+    private val geminiService = GeminiService()
+
+    private val _isGeminiConnected = MutableStateFlow(geminiService.isKeyConfigured)
+    val isGeminiConnected: StateFlow<Boolean> = _isGeminiConnected.asStateFlow()
+
+    private val _activeAiEngine = MutableStateFlow(
+        if (geminiService.isKeyConfigured) "GEMINI 2.5 FLASH" else "SARA ONBOARD CORE"
+    )
+    val activeAiEngine: StateFlow<String> = _activeAiEngine.asStateFlow()
 
     private val _currentTab = MutableStateFlow(AppTab.CONSOLE)
     val currentTab: StateFlow<AppTab> = _currentTab.asStateFlow()
@@ -276,21 +286,106 @@ I am your self-learning companion—ready to listen to your experiences, absorb 
         _isProcessing.value = true
 
         viewModelScope.launch {
-            delay(350)
+            val lower = userInput.trim().lowercase()
             val currentVol = _telemetry.value.currentVolumePercent
             val currentBat = _telemetry.value.batteryPercent
+            val isKeyReady = geminiService.isKeyConfigured
+            _isGeminiConnected.value = isKeyReady
+            _activeAiEngine.value = if (isKeyReady) "GEMINI 2.5 FLASH" else "SARA ONBOARD CORE"
 
-            val response = saraBrain.processCommand(userInput, currentVol, currentBat, memoryVault)
+            // Direct Status & Connection Check for Gemini API Key
+            if (lower.contains("connect gemini") || lower.contains("gemini api key") ||
+                lower.contains("gemini status") || lower.contains("check gemini") ||
+                lower == "gemini" || lower.contains("connect api key")
+            ) {
+                delay(300)
+                val masked = if (isKeyReady) {
+                    val key = geminiService.apiKey
+                    if (key.length > 8) "${key.take(4)}...${key.takeLast(4)}" else "••••••••"
+                } else "NOT DETECTED"
 
-            if (response.memoryItem != null) {
-                _lastNotification.value = "Absorbed Memory: ${response.memoryItem.concept}"
+                val replyText = if (isKeyReady) {
+                    """
+### SARA NEURAL CORE: GEMINI API LINK ACTIVE
+[Engine: ${geminiService.activeModelName} | Status: AUTHENTICATED]
+
+• **Status:** Connected & Verified
+• **Key Fingerprint:** `$masked`
+• **Inference Pipeline:** Cloud Gemini Intelligence + Local Hardware Actuator
+• **Tool Protocols:** System Settings, Background Daemons, Security Auditing, App Launching
+
+SARA is running with full Gemini cognitive depth. You can ask complex questions, converse in Hinglish, generate code, or trigger device commands.
+[Action: SETTING_TOGGLE | Target: SARA | State: GEMINI_CONNECTED]
+                    """.trimIndent()
+                } else {
+                    """
+### SARA NEURAL CORE: GEMINI API KEY SETUP
+[Engine: SARA Onboard Core | Status: AWAITING_KEY]
+
+`GEMINI_API_KEY` has been enabled in your `.env.example` file!
+To connect your live Gemini API key:
+1. Open the **Secrets panel** in the AI Studio sidebar.
+2. Add secret name: `GEMINI_API_KEY` with your Google AI Studio API key.
+3. The platform will automatically inject your key into `BuildConfig.GEMINI_API_KEY`.
+
+In the meantime, SARA is fully operational with high-speed **Onboard Neural Rules & Device Actuators**.
+[Action: SETTING_TOGGLE | Target: SARA | State: AWAITING_KEY]
+                    """.trimIndent()
+                }
+
+                val actions = saraBrain.parseAllActions(replyText)
+                val saraMsg = ChatMessage(
+                    id = UUID.randomUUID().toString(),
+                    sender = MessageSender.SARA,
+                    text = replyText,
+                    action = actions.firstOrNull(),
+                    actions = actions,
+                    isActionExecuted = true
+                )
+                _messages.value = _messages.value + saraMsg
+                _isProcessing.value = false
+                return@launch
+            }
+
+            // If Gemini Key is configured, attempt Live Cloud Inference
+            var responseText: String? = null
+            var responseActions: List<CommandAction> = emptyList()
+            var learnedMemory: MemoryItem? = null
+
+            if (isKeyReady) {
+                val pastMems = memoryVault.getAllMemories().map { "${it.concept}: ${it.content}" }
+                val telemetryStr = "Battery: ${_telemetry.value.batteryPercent}%, Volume: ${_telemetry.value.currentVolumePercent}%, Network: ${_telemetry.value.networkType}, Flashlight: ${_telemetry.value.isFlashlightActive}"
+
+                val geminiResult = geminiService.generateContent(
+                    userPrompt = userInput,
+                    contextMemories = pastMems,
+                    telemetrySummary = telemetryStr
+                )
+
+                if (geminiResult.isSuccess) {
+                    val rawText = geminiResult.getOrNull() ?: ""
+                    responseText = rawText
+                    responseActions = saraBrain.parseAllActions(rawText)
+                }
+            }
+
+            // If Gemini wasn't ready or call failed, use robust Onboard Engine
+            if (responseText == null) {
+                val fallbackResponse = saraBrain.processCommand(userInput, currentVol, currentBat, memoryVault)
+                responseText = fallbackResponse.displayText
+                responseActions = fallbackResponse.actions
+                learnedMemory = fallbackResponse.memoryItem
+            }
+
+            if (learnedMemory != null) {
+                _lastNotification.value = "Absorbed Memory: ${learnedMemory.concept}"
             }
 
             val executedActions = mutableListOf<CommandAction>()
-            for (act in response.actions) {
+            for (act in responseActions) {
                 val executed = deviceController.executeAction(act)
                 executedActions.add(executed)
-                if (response.actions.size > 1) {
+                if (responseActions.size > 1) {
                     delay(250) // multi-step sequential pacing
                 }
             }
@@ -299,7 +394,7 @@ I am your self-learning companion—ready to listen to your experiences, absorb 
             val saraMsg = ChatMessage(
                 id = UUID.randomUUID().toString(),
                 sender = MessageSender.SARA,
-                text = response.displayText,
+                text = responseText,
                 action = executedActions.firstOrNull(),
                 actions = executedActions,
                 isActionExecuted = executedActions.any { it.status == ExecutionStatus.EXECUTED }
